@@ -146,7 +146,8 @@ Redis may be used for queues, caching, rate limiting, or locking, but it is not 
 
 If Redis is not used, document the local alternative and any limitations.
 
----
+
+# ORIGINAL INSTRUCTION
 
 ## Scenario
 
