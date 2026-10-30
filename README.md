@@ -47,6 +47,9 @@ Pledge submissions require mandatory client validation via Form Requests (`email
 ### API Response design
 Structured standard JSON responses wrapped via API Resources with explicit ISO-8601 timestamp formatting, explicit numeric typecasting for monetary values, and standardized Laravel HTTP pagination metadata (`data`, `links`, `meta`).
 
+### Rate limiting
+A legitimate donator will only make one at a time, so 5 requests per minute should be enought in case they mess up on the form, and it will block scripts that does auto-spams or denial of services attacks.
+
 ### Test strategy
 Automated integration and unit tests covering:
 - Admin authorization and policy enforcement (`403` vs `200`).
@@ -93,6 +96,8 @@ php artisan test
 - Integrate Redis for rate-limiting and atomic locks (Cache::lock()).
 - Add idempotency key headers (X-Idempotency-Key) for public pledge submissions.
 - Set up PHPStan for static analysis.
+
+
 
 
 ## Overview
