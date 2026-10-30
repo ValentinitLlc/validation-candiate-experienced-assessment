@@ -44,6 +44,7 @@ class CauseController extends Controller
      */
     public function update(UpdateCauseRequest $request, Cause $cause): CauseResource
     {
+        $this->authorize('update', $cause);
         $cause->update($request->validated());
 
         return new CauseResource($cause);

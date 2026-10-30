@@ -21,7 +21,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 });
 
 // Routes admin pour les causes
-Route::prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth:sanctum'])->prefix('admin')->name('admin.')->group(function () {
     Route::apiResource('causes', CauseController::class);
     Route::patch('causes/{cause}/featured', [CauseController::class, 'toggleFeatured']);
 });
