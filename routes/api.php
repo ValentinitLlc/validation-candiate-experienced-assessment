@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\Admin\CauseController;
+use App\Http\Controllers\Api\PledgeController;
 
 /*
 |--------------------------------------------------------------------------
@@ -24,3 +25,6 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::apiResource('causes', CauseController::class);
     Route::patch('causes/{cause}/featured', [CauseController::class, 'toggleFeatured']);
 });
+
+// Route publique de soumission de don
+Route::post('pledges', [PledgeController::class, 'store']);
