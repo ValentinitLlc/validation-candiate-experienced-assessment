@@ -2,6 +2,14 @@
 
 ## Candidate Notes
 
+### What you would improve with more time
+- IMPORTANT: Use AI less when faced with unknowns, as I still do not grasp everything but had to use it since it is not prohibited, and I just did not have the time to rummage around for answers. If that eliminates me, then so be it, I did learn a lot about how to work with Laravel.
+
+- Integrate Redis for rate-limiting and atomic locks (Cache::lock()).
+- Add idempotency key headers (X-Idempotency-Key) for public pledge submissions.
+- Set up PHPStan for static analysis.
+
+
 ### Summary of the implementation
 The fundraising API handles Cause creation and management by administrators, as well as Pledge submissions by public visitors. 
 When total pledges meet or exceed a Cause's funding goal, the system automatically transitions the Cause to inactive, dispatches a `GoalReached` event, and queues an administrator notification. 
@@ -50,6 +58,17 @@ Structured standard JSON responses wrapped via API Resources with explicit ISO-8
 ### Rate limiting
 A legitimate donator will only make one at a time, so 5 requests per minute should be enought in case they mess up on the form, and it will block scripts that does auto-spams or denial of services attacks.
 
+### Chosen strategy in order to prevent having multiple pledges
+I have choosen to use the header X-Idempotency-Key
+How it works:
+1. When a client sends a pledge with the X-Idempotency-Key, the server verifies if the response with that key already exists
+2. If it exists the server answers with the saved response whitout having to verify the pledge again or whitout touching the DB
+3. If it doesn't exists the server treats the request normally and generates a response that goes in the cache for 24h
+
+Combined with the lock already put in place for the Causes, it guarantees a total security of the requests when they arrive at the same time,
+which is why I have taken this approach
+
+
 ### Test strategy
 Automated integration and unit tests covering:
 - Admin authorization and policy enforcement (`403` vs `200`).
@@ -91,12 +110,6 @@ As far as I can see, most are fulfilled at this point.
 ### Test instructions
 Run the PHPUnit test suite:
 php artisan test
-
-### What you would improve with more time
-- Integrate Redis for rate-limiting and atomic locks (Cache::lock()).
-- Add idempotency key headers (X-Idempotency-Key) for public pledge submissions.
-- Set up PHPStan for static analysis.
-
 
 
 

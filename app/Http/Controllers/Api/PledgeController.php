@@ -8,15 +8,28 @@ use App\Http\Requests\StorePledgeRequest;
 use App\Http\Resources\PledgeResource;
 use App\Models\Cause;
 use App\Models\Pledge;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class PledgeController extends Controller
 {
-    public function store(StorePledgeRequest $request): PledgeResource
+    public function store(StorePledgeRequest $request): JsonResponse
     {
+        $idempotencyKey = $request->header('X-Idempotency-Key');
+
+        // Vérification de l'idempotence via le cache (si la clé est fournie)
+        if ($idempotencyKey) {
+            $cacheKey = 'idempotency:' . $idempotencyKey;
+            if (Cache::has($cacheKey)) {
+                $cachedResponse = Cache::get($cacheKey);
+                return response()->json($cachedResponse['data'], $cachedResponse['status']);
+            }
+        }
+
+        // Traitement transactionnel et sécurisé (concurrence & logique métier)
         $pledge = DB::transaction(function () use ($request) {
-            // Lock pessimiste pour empêcher les accès concurrents
             $cause = Cause::where('id', $request->validated('cause_id'))
                 ->lockForUpdate()
                 ->firstOrFail();
@@ -36,7 +49,6 @@ class PledgeController extends Controller
 
             // Détection du franchissement de l'objectif (transition EXACTLY ONCE garantie)
             if ($totalPledged >= $cause->goal_amount && $cause->is_active) {
-                // On désactive uniquement si elle était encore active (évite les écritures et déclenchements multiples)
                 $cause->update(['is_active' => false]);
                 
                 event(new CauseGoalReached($cause));
@@ -45,6 +57,17 @@ class PledgeController extends Controller
             return $pledge;
         });
 
-        return new PledgeResource($pledge);
+        // Construction de la réponse normalisée
+        $responseContent = new PledgeResource($pledge);
+
+        // 3. Mise en cache de la réponse d'idempotence pour 24 heures si la clé est présente
+        if ($idempotencyKey) {
+            Cache::put($cacheKey, [
+                'status' => 201,
+                'data' => $responseContent
+            ], now()->addDay());
+        }
+
+        return response()->json($responseContent, 201);
     }
 }
