@@ -30,12 +30,13 @@ class PledgeController extends Controller
 
             // Enregistrement de la promesse de don
             $pledge = Pledge::create($request->validated());
-
-            // Calcul du total cumulé en BDD
+            
+            // Calcul du total cumulé en SQL (pas de boucle PHP)
             $totalPledged = $cause->pledges()->sum('amount');
 
-            // Détection du franchissement de l'objectif
-            if ($totalPledged >= $cause->goal_amount) {
+            // Détection du franchissement de l'objectif (transition EXACTLY ONCE garantie)
+            if ($totalPledged >= $cause->goal_amount && $cause->is_active) {
+                // On désactive uniquement si elle était encore active (évite les écritures et déclenchements multiples)
                 $cause->update(['is_active' => false]);
                 
                 event(new CauseGoalReached($cause));
