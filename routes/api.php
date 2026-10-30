@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\Admin\CauseController;
 
 /*
 |--------------------------------------------------------------------------
@@ -16,4 +17,10 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
+});
+
+// Routes admin pour les causes
+Route::prefix('admin')->name('admin.')->group(function () {
+    Route::apiResource('causes', CauseController::class);
+    Route::patch('causes/{cause}/featured', [CauseController::class, 'toggleFeatured']);
 });
