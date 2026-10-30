@@ -30,6 +30,9 @@ class CauseController extends Controller
      */
     public function store(StoreCauseRequest $request): CauseResource
     {
+        // 🔒 Sécurisation : Vérifie la policy de création
+        $this->authorize('create', Cause::class);
+
         $cause = Cause::create($request->validated());
 
         return new CauseResource($cause);
@@ -59,6 +62,7 @@ class CauseController extends Controller
      */
     public function destroy(Cause $cause): JsonResponse
     {
+        $this->authorize('delete', $cause); // Optionnel mais plus rigoureux
         $cause->delete();
 
         return response()->json(null, 204);
@@ -67,6 +71,9 @@ class CauseController extends Controller
     // Endpoint spécifique pour marquer/démarquer comme featured
     public function toggleFeatured(Cause $cause): CauseResource
     {
+        // 🔒 Sécurisation : Vérifie la policy de mise à jour
+        $this->authorize('update', $cause);
+
         $cause->update([
             'is_featured' => !$cause->is_featured
         ]);
