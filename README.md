@@ -111,7 +111,7 @@ As far as I can see, most are fulfilled at this point.
 Run the PHPUnit test suite:
 php artisan test
 
-
+# --- ORIGINAL INSTRUCTIONS ---
 
 ## Overview
 
