@@ -8,17 +8,21 @@ use App\Http\Requests\UpdateCauseRequest;
 use App\Http\Resources\CauseResource;
 use App\Models\Cause;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class CauseController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index(): AnonymousResourceCollection
+    public function index()
     {
-        // Optionnel pour l'admin : lister toutes les causes
-        return CauseResource::collection(Cause::latest()->paginate(15));
+        $causes = Cause::withSum('pledges', 'amount')
+            ->withCount('pledges')
+            ->orderBy('is_featured', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->paginate(10);
+
+        return CauseResource::collection($causes);
     }
 
     /**

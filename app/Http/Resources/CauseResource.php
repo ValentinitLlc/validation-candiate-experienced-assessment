@@ -21,8 +21,8 @@ class CauseResource extends JsonResource
             'goal_amount' => $this->goal_amount,
             'is_active' => $this->is_active,
             'is_featured' => $this->is_featured,
-            'total_pledged' => $this->whenLoaded('pledges', fn() => $this->pledges->sum('amount'), $this->total_pledged ?? 0),
-            'pledge_count' => $this->whenLoaded('pledges', fn() => $this->pledges->count(), $this->pledge_count ?? 0),
+            'total_pledged' => $this->pledges_sum_amount ?? $this->total_pledged ?? 0,
+            'pledge_count' => $this->pledges_count ?? 0,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

@@ -28,3 +28,6 @@ Route::middleware(['auth:sanctum'])->prefix('admin')->name('admin.')->group(func
 
 // Route publique de soumission de don
 Route::post('pledges', [PledgeController::class, 'store']);
+
+// Route publique de listing des causes
+Route::get('causes', [CauseController::class, 'index']);

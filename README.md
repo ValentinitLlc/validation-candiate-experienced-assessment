@@ -3,50 +3,96 @@
 ## Candidate Notes
 
 ### Summary of the implementation
+The fundraising API handles Cause creation and management by administrators, as well as Pledge submissions by public visitors. 
+When total pledges meet or exceed a Cause's funding goal, the system automatically transitions the Cause to inactive, dispatches a `GoalReached` event, and queues an administrator notification. 
+The public listing endpoint returns paginated Causes ordered with featured items first and newest items within each group, utilizing database-level aggregates to ensure optimal efficiency.
 
 ### Architecture decisions
+- **Thin Controllers & Form Requests:** Controller methods are kept lightweight, delegating request validation to dedicated `FormRequest` classes (`StoreCauseRequest`, `UpdateCauseRequest`, `StorePledgeRequest`).
+- **Domain Events & Queued Listeners:** Business side-effects (notifying admins on goal reach) are decoupled using Laravel's Event-Listener pattern and queued asynchronously.
+- **API Resources:** All API responses pass through Laravel `JsonResource` layers (`CauseResource`, `PledgeResource`) to prevent raw model exposure and maintain a predictable API schema.
 
 ### Concurrency problem identified
+Under high traffic, simultaneous Pledge submissions against the same active Cause could cause a race condition. 
+Two concurrent requests reading the current sum of pledges might both determine the goal isn't reached yet, both persist their pledge, and both trigger the goal-reached transition, leading to duplicate notifications or inaccurate state updates.
 
-### Why the selected strategy is appropriate
+### Concurrency-control strategy & Why appropriate
+- **Database Transactions (`DB::transaction`):** Submissions, sum calculations, and state transitions are executed within an atomic database transaction.
+- **Pessimistic Locking (`lockForUpdate()`):** When retrieving the target Cause during a pledge submission, a `SELECT FOR UPDATE` lock is acquired on the Cause row. This serializes concurrent pledge processing for that specific Cause without locking unrelated records, preventing race conditions and ensuring aggregate calculation accuracy.
 
 ### Exactly-once event and notification handling
+Within the locked database transaction, the total pledged amount is evaluated against `goal_amount`. If the threshold is crossed, the Cause's `is_active` attribute is updated to `false` and saved within the same transaction. The `GoalReached` event is dispatched **only** when `is_active` transitions from `true` to `false`. Subsequent locked requests will read `is_active = false` and skip dispatching the event, guaranteeing exactly-once execution.
 
 ### Queue configuration
+- **Connection:** Configured using the `database` queue driver for local development without external dependencies (Redis/RabbitMQ).
+- **Asynchronous Execution:** The `SendGoalReachedNotification` listener implements `ShouldQueue`, ensuring admin notifications are processed outside the HTTP request/response lifecycle.
 
 ### Authorization approach
+- **Policy Mapping:** Secured using `CausePolicy` mapped in `AuthServiceProvider` and protected via the `auth:sanctum` middleware on all `/api/admin/*` routes.
+- **Role Verification:** Authenticated users are checked against an `is_admin` boolean flag on the `users` table, yielding HTTP `403 Forbidden` for unauthorized attempts.
 
 ### N+1 prevention
+The public Cause listing endpoint (`GET /api/causes`) utilizes Eloquent's `withSum('pledges', 'amount')` and `withCount('pledges')`. Aggregate metrics are computed via database-level subqueries/joins in a single SQL query, completely eliminating N+1 query issues and in-memory PHP loops.
 
 ### Database indexes added
-
+- **Composite Index `(is_featured, created_at)` on `causes`:** Directly optimizes the public listing query (`ORDER BY is_featured DESC, created_at DESC`) and pagination, avoiding full table scans.
+- **Foreign Key Index `cause_id` on `pledges`:** Accelerates `SUM` and `COUNT` aggregate joins per Cause.
 ### Rate-limit configuration and justification
+- **Public Endpoints (`/api/pledges`, `/api/causes`):** Restricted using Laravel's `throttle:api` (60 requests/minute per IP) to mitigate abusive traffic, brute-force attempts, and denial-of-service vectors.
+- **Admin Endpoints (`/api/admin/*`):** Throttle limits applied per authenticated user ID.
 
 ### Duplicate-submission strategy
+Pledge submissions require mandatory client validation via Form Requests (`email`, `amount`, `cause_id`). Idempotency at the pledge layer can be further guaranteed by coupling transactional verification with unique client-provided tokens if required.
 
-### API response design
+### API Response design
+Structured standard JSON responses wrapped via API Resources with explicit ISO-8601 timestamp formatting, explicit numeric typecasting for monetary values, and standardized Laravel HTTP pagination metadata (`data`, `links`, `meta`).
 
 ### Test strategy
+Automated integration and unit tests covering:
+- Admin authorization and policy enforcement (`403` vs `200`).
+- Public listing ordering and aggregate calculations (`total_pledged`, `pledge_count`).
+- Pledge validation and automatic Cause deactivation upon reaching goal_amount.
+- Event dispatching and queued listener registration.
 
 ### Database-specific limitations
+- **SQLite:** Used for local testing environment. SQLite locking operates at a broader level compared to row-level locks in PostgreSQL/MySQL (`InnoDB`). In production MySQL/PostgreSQL, `lockForUpdate()` provides full row-level concurrency isolation.
 
 ### Assumptions
+- Administrative users are provisioned with `is_admin = true`.
+- Currency amounts are stored using precise decimal fields (`decimal(10,2)`).
 
 ### Trade-offs
+- Using pessimistic row locks (`lockForUpdate()`) trades a slight throughput overhead on a single Cause for strict financial accuracy and state consistency.
 
 ### Known limitations
+- Under SQLite, high write concurrency may encounter database lock contention due to file-level locking behavior.
 
 ### Incomplete requirements
+As far as I can see, most are fulfilled at this point.
 
 ### Setup instructions
+1. Clone the repository and install dependencies:
+   ```bash
+   composer install
+   ```
+
+2. Configure environment file:
+    ```cp .env.example .env
+    php artisan key:generate
+    ```
+
+3. Run migrations:
+    ```php artisan migrate
+    ```
 
 ### Test instructions
+Run the PHPUnit test suite:
+php artisan test
 
 ### What you would improve with more time
-
-
-
-
+- Integrate Redis for rate-limiting and atomic locks (Cache::lock()).
+- Add idempotency key headers (X-Idempotency-Key) for public pledge submissions.
+- Set up PHPStan for static analysis.
 
 
 ## Overview
